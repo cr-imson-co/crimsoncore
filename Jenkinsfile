@@ -55,27 +55,10 @@ pipeline {
         HOME = "${env.WORKSPACE}"
       }
       steps {
-        sh """
-          pip install \
-            --user \
-            --no-cache \
-            -r ${env.WORKSPACE}/deps/boto3layer/requirements.txt
-        """.stripIndent()
+        sh "pip install --user --no-cache -r ${env.WORKSPACE}/deps/boto3layer/requirements.txt"
+        sh "find ${env.WORKSPACE}/lib/${env.LAYER_NAME} -type f -iname '*.py' -print0 | xargs -0 python -m pylint"
 
-        sh """
-          find ${env.WORKSPACE}/lib/${env.LAYER_NAME} \
-            -type f \
-            -iname '*.py' \
-            -print0 \
-            | xargs -0 python -m pylint
-        """.stripIndent()
-
-        sh """
-          pip install \
-            --user \
-            --no-cache \
-            -e ${env.WORKSPACE}/lib
-        """.stripIndent()
+        sh "pip install --user --no-cache -e ${env.WORKSPACE}/lib"
 
         sh 'python -m unittest discover'
       }
@@ -83,10 +66,7 @@ pipeline {
 
     stage('Build crimsoncore layer') {
       steps {
-        sh """
-          mkdir -p \
-            ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/
-        """.stripIndent()
+        sh "mkdir -p ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/"
 
         sh """
           cp \
