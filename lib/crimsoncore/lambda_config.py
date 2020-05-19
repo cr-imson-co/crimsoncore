@@ -22,11 +22,11 @@ class LambdaConfig:
 
         self._defaults = {
             'APPLICATION_NAME': '',
+            'AWS_LAMBDA_LOG_GROUP_NAME': '',
+            'AWS_LAMBDA_LOG_STREAM_NAME': '',
             'DEBUG_MODE': 'off',
             'ENVIRONMENT': '',
             'GLOBAL_PREFIX': '',
-            'LOG_PATH': '../logs/',
-            'LOG_ARCHIVE_MODE': 'stdout',
             'SAFE_MODE': 'off',
             'STACK_NAME': ''
         }
@@ -39,7 +39,6 @@ class LambdaConfig:
             'DEBUG_MODE': ('on', 'off', 'true', 'false', 'yes', 'no'),
             'ENABLE_NOTIFICATIONS': ('on', 'off', 'true', 'false', 'yes', 'no'),
             'FIPS_MODE': ('on', 'off', 'true', 'false', 'yes', 'no'),
-            'LOG_ARCHIVE_MODE': ('s3', 'stdout'),
             'SAFE_MODE': ('on', 'off', 'true', 'false', 'yes', 'no')
         }
 
@@ -50,19 +49,18 @@ class LambdaConfig:
 
         self.debug_mode = None
         self.log_level = None
-        self.log_path = None
 
         self.safe_mode = None
         self.fips_mode = None
-        self.log_archive_mode = None
 
         self.aws_region = None
-        self.log_bucket = None
-        self.log_kms_key_id = None
 
         self.global_prefix = None
         self.environment = None
         self.stack_name = None
+
+        self.log_group = None
+        self.log_stream = None
 
         self.notification_arn = None
 
@@ -144,16 +142,6 @@ class LambdaConfig:
 
         return self.log_level
 
-    def get_log_path(self):
-        '''
-        Get the log path we should be writing logs to (even if temporarily, in Lambda).
-        '''
-
-        if self.log_path is None:
-            self.log_path = self.val('LOG_PATH')
-
-        return self.log_path
-
     def get_safe_mode(self):
         '''
         Check to see if safe mode is enabled.
@@ -228,28 +216,25 @@ class LambdaConfig:
 
         return self.stack_name
 
-    def get_log_archive_mode(self):
+    def get_log_group(self):
         '''
-        Get the log archive mode.
-        '''
-
-        if self.log_archive_mode is None:
-            self.log_archive_mode = self.val('LOG_ARCHIVE_MODE', to_lower=True)
-
-        return self.log_archive_mode
-
-    def get_log_kms_key_id(self):
-        '''
-        Get the AWS KMS Encryption Key ID to use when uploading logs to an AWS Bucket.
+        Get the AWS Log Group name for this invocation.
         '''
 
-        if self.log_kms_key_id is None:
-            if self.get_log_archive_mode() != 's3':
-                raise ValueError('log_kms_key_id cannot be used when log_archive_mode is not "s3"')
+        if self.log_group is None:
+            self.log_group = self.val('AWS_LAMBDA_LOG_GROUP_NAME')
 
-            self.log_kms_key_id = self.val('LOG_KMS_KEY_ID')
+        return self.log_group
 
-        return self.log_kms_key_id
+    def get_log_stream(self):
+        '''
+        Get the AWS Log Stream name for this invocation.
+        '''
+
+        if self.log_stream is None:
+            self.log_stream = self.val('AWS_LAMBDA_LOG_STREAM_NAME')
+
+        return self.log_stream
 
     def get_notification_arn(self):
         '''
@@ -260,16 +245,6 @@ class LambdaConfig:
             self.notification_arn = self.val('NOTIFICATION_ARN')
 
         return self.notification_arn
-
-    def get_log_bucket_name(self):
-        '''
-        Get the name of the bucket to store critical error logs in.
-        '''
-
-        if self.log_bucket is None:
-            self.log_bucket = self.val('LOG_BUCKET_NAME', to_lower=True, default_override=self.build_bucket_name('logs'))
-
-        return self.log_bucket
 
     def build_legacy_ssm_param_name(self, name, include_global_prefix=False, include_application_name=False, include_environment=False, include_stack_name=False):
         '''

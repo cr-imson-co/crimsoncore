@@ -149,45 +149,31 @@ class LambdaConfigTestCase(unittest.TestCase):
 
         self.assertEqual(config.get_stack_name(), '')
 
-    def test_log_archive_mode(self):
-        values = ('s3', 'stdout', 'STDOUT')
+    def test_log_group(self):
+        values = ('test', '/aws/lambda/my-lambda-name')
         for value in values:
             with self.subTest(value=value):
-                config = LambdaConfig('test', {'LOG_ARCHIVE_MODE': value})
+                config = LambdaConfig('test', {'AWS_LAMBDA_LOG_GROUP_NAME': value})
 
-                self.assertEqual(config.get_log_archive_mode(), value.lower())
+                self.assertEqual(config.get_log_group(), value)
 
-    def test_bad_log_archive_mode(self):
-        config = LambdaConfig('test', {'LOG_ARCHIVE_MODE': 'nonsense'})
+    def test_no_log_group(self):
+        config = LambdaConfig('test', {})
 
-        self.assertRaises(ValueError, config.get_log_archive_mode)
+        self.assertEqual(config.get_log_group(), '')
 
-    def test_log_kms_key_id(self):
-        config = LambdaConfig('test', {
-            'RUN_MODE': 'aws',
-            'LOG_ARCHIVE_MODE': 's3',
-            'LOG_KMS_KEY_ID': 'testvalue'
-        })
+    def test_log_stream(self):
+        values = ('test', '2020/05/18/[$LATEST]4d4aa1d279be4f0a9410e1a18b8250f5')
+        for value in values:
+            with self.subTest(value=value):
+                config = LambdaConfig('test', {'AWS_LAMBDA_LOG_STREAM_NAME': value})
 
-        self.assertEqual(config.get_log_kms_key_id(), 'testvalue')
+                self.assertEqual(config.get_log_stream(), value)
 
-    def test_log_kms_key_id__bad_run_mode(self):
-        config = LambdaConfig('test', {
-            'RUN_MODE': 'local',
-            'LOG_ARCHIVE_MODE': 'local',
-            'LOG_KMS_KEY_ID': 'testvalue'
-        })
+    def test_no_log_stream(self):
+        config = LambdaConfig('test', {})
 
-        self.assertRaises(ValueError, config.get_log_kms_key_id)
-
-    def test_log_kms_key_id__bad_log_mode(self):
-        config = LambdaConfig('test', {
-            'RUN_MODE': 'aws',
-            'LOG_ARCHIVE_MODE': 'local',
-            'LOG_KMS_KEY_ID': 'testvalue'
-        })
-
-        self.assertRaises(ValueError, config.get_log_kms_key_id)
+        self.assertEqual(config.get_log_stream(), '')
 
     def test_build_bucket_name(self):
         tests = [
@@ -506,23 +492,6 @@ class LambdaConfigTestCase(unittest.TestCase):
                     ),
                     test.get('expected')
                 )
-
-    def test_log_bucket_name(self):
-        values = ('mybucketname', 'MYBUCKETNAME')
-        for value in values:
-            with self.subTest(value=value):
-                config = LambdaConfig('test', {'LOG_BUCKET_NAME': value})
-
-                self.assertEqual(config.get_log_bucket_name(), value.lower())
-
-
-    def test_log_bucket_name_default(self):
-        config = LambdaConfig('test', {
-            'GLOBAL_PREFIX': 'log',
-            'APPLICATION_NAME': 'test'
-        })
-
-        self.assertEqual(config.get_log_bucket_name(), 'log-test-logs')
 
     def test_notification_arn(self):
         values = ('mynotificationarn', 'MYNOTIFICATIONARN')

@@ -31,20 +31,13 @@ class LambdaCore:
 
         self.config = LambdaConfig(name=self.script_name, env=os.environ if env is None else env)
 
-        # ensure the log directory exists.
-        # while we log to /tmp/logs/ in AWS lambda,
-        #   other envs such as testbeds may not be as reliable.
-        os.makedirs(self.config.get_log_path(), exist_ok=True)
-
-        self._log_handler = None
-        self._log_formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
-        self._log_stream_handler = logging.StreamHandler(sys.stdout)
-        self._log_stream_handler.setFormatter(self._log_formatter)
-        self._log_stream_handler.setLevel(self.config.get_log_level())
+        # self._log_formatter =
+        log_stream_handler = logging.StreamHandler(sys.stdout)
+        log_stream_handler.setFormatter(logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s'))
+        log_stream_handler.setLevel(self.config.get_log_level())
 
         self.logger = logging.getLogger(self.script_name)
-        self.logger.addHandler(self._log_stream_handler)
-        self.change_logfile('bootstrap.log')
+        self.logger.addHandler(log_stream_handler)
         self.logger.setLevel(self.config.get_log_level())
 
         self.ec2 = None
@@ -208,38 +201,6 @@ class LambdaCore:
             bare_params.update([(parameter['Name'], parameter['Value'])])
 
         return bare_params
-
-    def change_logfile(self, filename):
-        '''
-        Switch what file we're logging to.
-        '''
-
-        if self._log_handler is not None:
-            self._log_handler.close()
-            self.logger.removeHandler(self._log_handler)
-
-        self._log_handler = logging.FileHandler(f'{self.config.get_log_path()}/{filename}')
-        self._log_handler.setFormatter(self._log_formatter)
-        self._log_handler.setLevel(self.config.get_log_level())
-        self.logger.addHandler(self._log_handler)
-
-    def archive_log_file(self, filepath, data):
-        '''
-        Archive a log file to S3.
-        '''
-
-        if self.config.get_log_archive_mode() == 's3':
-            self.logger.info('Archiving log file to S3 bucket path: %s', filepath)
-
-            self.s3.put_object(
-                Bucket=self.config.get_log_bucket_name(),
-                Key=filepath,
-                Body=data.encode('utf-8'),
-                ServerSideEncryption='aws:kms',
-                SSEKMSKeyId=self.config.get_log_kms_key_id()
-            )
-        elif self.config.get_log_archive_mode() == 'stdout':
-            pass
 
     def send_notification(self, notification_type, message):
         '''
