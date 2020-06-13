@@ -45,52 +45,45 @@ class LambdaCore:
         self.s3 = None # pylint: disable=C0103
         self.sns = None
         self.ssm = None
+        self.rds = None
 
     def init_ec2(self):
         '''
-        Initialize Amazon EC2 API.
+        Initialize AWS EC2 API.
         '''
 
-        endpoint_url = None
         aws_region = self.config.get_aws_region()
 
         if self.config.get_fips_mode():
-            self.logger.info('Enabling FIPS compliance mode for AWS EC2')
-
-            endpoint_url = f'https://ec2.{aws_region}.amazonaws.com'
+            self.logger.info('FIPS mode ignored - AWS EC2 FIPS support is region-dependent')
 
         self.ec2 = boto3.resource(
             'ec2',
-            region_name=aws_region,
-            endpoint_url=endpoint_url
+            region_name=aws_region
         )
 
         self.logger.info('AWS EC2 API initialized')
 
     def init_ssm(self):
         '''
-        Initialize Amazon SSM API.
+        Initialize AWS SSM API.
         '''
 
-        endpoint_url = None
         aws_region = self.config.get_aws_region()
 
         if self.config.get_fips_mode():
-            self.logger.info('Enabling FIPS compliance mode for AWS SSM')
-
-            endpoint_url = f'https://ssm.{aws_region}.amazonaws.com'
+            self.logger.info('FIPS mode ignored - AWS SSM FIPS support is region-dependent')
 
         self.ssm = boto3.client(
             'ssm',
-            region_name=aws_region,
-            endpoint_url=endpoint_url
+            region_name=aws_region
         )
 
         self.logger.info('AWS SSM API initialized')
 
     def init_s3(self):
         '''
-        Initialize Amazon S3 API.
+        Initialize AWS S3 API.
         '''
 
         endpoint_url = None
@@ -110,28 +103,24 @@ class LambdaCore:
 
     def init_sns(self):
         '''
-        Initialize Amazon SNS API.
+        Initialize AWS SNS API.
         '''
 
-        endpoint_url = None
         aws_region = self.config.get_aws_region()
 
         if self.config.get_fips_mode():
-            self.logger.info('Enabling FIPS compliance mode for AWS SNS')
-
-            endpoint_url = f'https://sns.{aws_region}.amazonaws.com'
+            self.logger.info('FIPS mode ignored - AWS SNS FIPS support is region-dependent')
 
         self.sns = boto3.client(
             'sns',
-            region_name=aws_region,
-            endpoint_url=endpoint_url
+            region_name=aws_region
         )
 
         self.logger.info('AWS SNS API initialized')
 
     def init_lambda(self):
         '''
-        Initialize Amazon Lambda API.
+        Initialize AWS Lambda API.
         '''
 
         endpoint_url = None
@@ -149,6 +138,23 @@ class LambdaCore:
         )
 
         self.logger.info('AWS Lambda API initialized')
+
+    def init_rds(self):
+        '''
+        Initialize Amazon RDS API.
+        '''
+
+        aws_region = self.config.get_aws_region()
+
+        if self.config.get_fips_mode():
+            self.logger.info('FIPS mode ignored - AWS RDS FIPS support is region-dependent')
+
+        self.rds = boto3.client(
+            'rds',
+            region_name=aws_region
+        )
+
+        self.logger.info('AWS RDS API initialized')
 
     def get_ssm_parameter(self, name, encrypted=False, include_global_prefix=True, include_application_name=True, include_environment=False, include_stack_name=False, legacy_name=False):
         '''
