@@ -3,6 +3,7 @@
 def PYTHON_VERSION = '3.8'
 pipeline {
   options {
+    copyArtifactPermission 'cr.imson.co/lambda/deploy-pipeline'
     buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '3', daysToKeepStr: '', numToKeepStr: '')
     gitLabConnection('gitlab@cr.imson.co')
     gitlabBuilds(builds: ['jenkins'])
@@ -33,11 +34,11 @@ pipeline {
   }
   environment {
     CI = 'true'
-    AWS_REGION = 'us-east-2'
-    AWS_BUCKET_NAME = 'codebite-lambda-layers'
     LAYER_NAME = 'crimsoncore'
+    LAYER_RUNTIME = "python${PYTHON_VERSION}"
     LAYER_DESCRIPTION = "CrimsonCore Lambda Layer for Python ${PYTHON_VERSION}"
-    LICENSE_IDENTIFIER = 'MIT'
+    LAYER_LICENSE = 'MIT'
+    PIP_DISABLE_PIP_VERSION_CHECK = '1'
   }
   stages {
     stage('Prepare') {
@@ -47,32 +48,48 @@ pipeline {
       }
     }
 
-    stage('QA') {
+    stage('Run pylint') {
       environment {
         HOME = "${env.WORKSPACE}"
       }
       steps {
-        sh "pip install --user --no-cache --progress-bar off -r ${env.WORKSPACE}/deps/boto3layer/requirements.txt"
-        sh "find ${env.WORKSPACE}/lib/${env.LAYER_NAME} -type f -iname '*.py' -print0 | xargs -0 python -m pylint"
+        // tight coupling against boto3layer requires us to install it and its deps in order to lint
+        sh label: 'install dependencies for pylint run',
+          script: "pip install --user --no-cache --progress-bar off -r ${env.WORKSPACE}/deps/boto3layer/requirements.txt"
 
-        sh "pip install --user --no-cache --progress-bar off -e ${env.WORKSPACE}/lib"
-
-        sh 'python -m unittest discover'
+        sh label: 'run pylint',
+          script: "find ${env.WORKSPACE}/lib/${env.LAYER_NAME} -type f -iname '*.py' -print0 | xargs -0 python -m pylint"
       }
     }
 
-    stage('Build crimsoncore layer') {
+    stage('Run tests') {
+      environment {
+        HOME = "${env.WORKSPACE}"
+      }
       steps {
-        sh "mkdir -p ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/"
+        sh label: 'install library to run tests',
+          script: "pip install --user --no-cache --progress-bar off -e ${env.WORKSPACE}/lib"
 
-        sh """
-          cp \
-            ${env.WORKSPACE}/lib/${env.LAYER_NAME}/*.py \
-            ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/
-        """.stripIndent()
+        sh label: 'run unit tests',
+          script: 'python -m unittest discover'
+      }
+    }
+
+    stage('Build layer') {
+      steps {
+        sh label: 'create build directory',
+          script: "mkdir -p ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/"
+
+        sh label: 'install package and dependencies to build directory',
+          script: """
+            cp \
+              ${env.WORKSPACE}/lib/${env.LAYER_NAME}/*.py \
+              ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/
+          """.stripIndent()
 
         dir("${env.WORKSPACE}/build/") {
-          sh "zip -r ${env.LAYER_NAME}-lambda-layer.zip *"
+          sh label: 'build layer zip',
+            script: "zip -r ${env.LAYER_NAME}-lambda-layer.zip *"
         }
       }
     }
@@ -84,42 +101,17 @@ pipeline {
       steps {
         archiveArtifacts "build/${env.LAYER_NAME}-lambda-layer.zip"
 
-        withCredentials([file(credentialsId: '69902ef6-1a24-4740-81fa-7b856248987d', variable: 'AWS_SHARED_CREDENTIALS_FILE')]) {
-          sh """
-            aws s3 cp \
-              ${env.WORKSPACE}/build/${env.LAYER_NAME}-lambda-layer.zip \
-              s3://${env.AWS_BUCKET_NAME}/
-          """.stripIndent()
-
-          sh """
-            aws lambda publish-layer-version \
-              --region ${env.AWS_REGION} \
-              --layer-name ${env.LAYER_NAME}-lambda-layer \
-              --description "${env.LAYER_DESCRIPTION}" \
-              --compatible-runtimes python${PYTHON_VERSION} \
-              --license-info "${env.LICENSE_IDENTIFIER}" \
-              --content S3Bucket=${env.AWS_BUCKET_NAME},S3Key=${env.LAYER_NAME}-lambda-layer.zip
-          """.stripIndent()
-
-          withCredentials([string(credentialsId: '92c99606-a8c6-44cc-9f67-718f3dfea120', variable: 'LAYER_UPDATER_ARN')]) {
-            // note: we're ignoring the response.json contents deliberately
-            script {
-              def payload = [
-                runtime: 'python' + PYTHON_VERSION,
-                layer_name: env.LAYER_NAME + '-lambda-layer'
-              ]
-              writeJSON file: './payload.json', json: payload
-              sh """
-                aws lambda invoke \
-                  --region ${env.AWS_REGION} \
-                  --function-name "${env.LAYER_UPDATER_ARN}" \
-                  --invocation-type Event \
-                  --payload fileb://./payload.json \
-                  response.json
-              """.stripIndent()
-            }
-          }
-        }
+        build job: 'cr.imson.co/lambda/deploy-pipeline',
+          parameters: [
+            [$class: 'StringParameterValue', name: 'LAYER_NAME', value: env.LAYER_NAME],
+            [$class: 'StringParameterValue', name: 'LAYER_DESCRIPTION', value: env.LAYER_DESCRIPTION],
+            [$class: 'StringParameterValue', name: 'LAYER_LICENSE', value: env.LAYER_LICENSE],
+            [$class: 'StringParameterValue', name: 'LAYER_RUNTIME', value: env.LAYER_RUNTIME],
+            [$class: 'StringParameterValue', name: 'LAYER_ARTIFACT_NAME', value: "${env.LAYER_NAME}-lambda-layer.zip"],
+            [$class: 'StringParameterValue', name: 'ORIGINAL_JOB', value: currentBuild.fullProjectName],
+            [$class: 'StringParameterValue', name: 'ORIGINAL_BUILD_NUMBER', value: env.BUILD_NUMBER]
+          ],
+          wait: true
       }
     }
   }
