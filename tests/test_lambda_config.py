@@ -493,6 +493,22 @@ class LambdaConfigTestCase(unittest.TestCase):
                     test.get('expected')
                 )
 
+    def test_notifications_enabled_on(self):
+        values = ('on', 'true', 'yes', 'ON')
+        for value in values:
+            with self.subTest(value=value):
+                config = LambdaConfig('test', {'NOTIFICATIONS_ENABLED': value})
+
+                self.assertIs(config.get_notifications_enabled(), True)
+
+    def test_notifications_enabled_off(self):
+        values = ('off', 'false', 'no', 'OFF')
+        for value in values:
+            with self.subTest(value=value):
+                config = LambdaConfig('test', {'NOTIFICATIONS_ENABLED': value})
+
+                self.assertIs(config.get_notifications_enabled(), False)
+
     def test_notification_arn(self):
         values = ('mynotificationarn', 'MYNOTIFICATIONARN')
         for value in values:

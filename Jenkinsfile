@@ -29,7 +29,7 @@ pipeline {
   }
   agent {
     docker {
-      image "docker.cr.imson.co/python-lambda-layer-builder:${PYTHON_VERSION}"
+      image "docker.cr.imson.co/python-lambda-builder:${PYTHON_VERSION}"
     }
   }
   environment {
@@ -53,9 +53,9 @@ pipeline {
         HOME = "${env.WORKSPACE}"
       }
       steps {
-        // tight coupling against boto3layer requires us to install it and its deps in order to lint
+        // tight coupling against boto3 requires us to install it and its deps in order to lint
         sh label: 'install dependencies for pylint run',
-          script: "pip install --user --no-cache --progress-bar off -r ${env.WORKSPACE}/deps/boto3layer/requirements.txt"
+          script: "pip install --user --no-cache --progress-bar off -r ${env.WORKSPACE}/deps/boto3/requirements.txt"
 
         sh label: 'run pylint',
           script: "find ${env.WORKSPACE}/lib/${env.LAYER_NAME} -type f -iname '*.py' -print0 | xargs -0 python -m pylint"
@@ -80,12 +80,30 @@ pipeline {
         sh label: 'create build directory',
           script: "mkdir -p ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/"
 
-        sh label: 'install package and dependencies to build directory',
+        sh label: 'install package to build directory',
           script: """
             cp \
               ${env.WORKSPACE}/lib/${env.LAYER_NAME}/*.py \
               ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/${env.LAYER_NAME}/
           """.stripIndent()
+
+        sh label: 'install boto3 and dependencies to build directory',
+          script: """
+            pip install \
+              --no-cache \
+              --progress-bar off \
+              -r ${env.WORKSPACE}/deps/boto3/requirements.txt \
+              -t ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/.
+          """
+
+        sh label: 'install pytz and dependencies to build directory',
+          script: """
+            pip install \
+              --no-cache \
+              --progress-bar off \
+              -r ${env.WORKSPACE}/deps/pytz/requirements.txt \
+              -t ${env.WORKSPACE}/build/python/lib/python${PYTHON_VERSION}/site-packages/.
+          """
 
         dir("${env.WORKSPACE}/build/") {
           sh label: 'build layer zip',

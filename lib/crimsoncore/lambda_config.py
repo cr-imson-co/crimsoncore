@@ -37,7 +37,7 @@ class LambdaConfig:
 
         self._validations = {
             'DEBUG_MODE': ('on', 'off', 'true', 'false', 'yes', 'no'),
-            'ENABLE_NOTIFICATIONS': ('on', 'off', 'true', 'false', 'yes', 'no'),
+            'NOTIFICATIONS_ENABLED': ('on', 'off', 'true', 'false', 'yes', 'no'),
             'FIPS_MODE': ('on', 'off', 'true', 'false', 'yes', 'no'),
             'SAFE_MODE': ('on', 'off', 'true', 'false', 'yes', 'no')
         }
@@ -62,6 +62,7 @@ class LambdaConfig:
         self.log_group = None
         self.log_stream = None
 
+        self.notifications_enabled = None
         self.notification_arn = None
 
     def _get_val(self, name, default_override=None):
@@ -215,6 +216,16 @@ class LambdaConfig:
             self.stack_name = self.val('STACK_NAME', to_lower=True)
 
         return self.stack_name
+
+    def get_notifications_enabled(self):
+        '''
+        Get whether or not notifications are currently enabled.
+        '''
+
+        if self.notifications_enabled is None:
+            self.notifications_enabled = self.val('NOTIFICATIONS_ENABLED', bool_coerce=True, default_override=True)
+
+        return self.notifications_enabled
 
     def get_log_group(self):
         '''

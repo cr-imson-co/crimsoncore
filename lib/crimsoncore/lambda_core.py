@@ -14,7 +14,6 @@
 import json
 import logging
 import os
-import sys
 
 import boto3
 from botocore.client import Config
@@ -31,13 +30,7 @@ class LambdaCore:
 
         self.config = LambdaConfig(name=self.script_name, env=os.environ if env is None else env)
 
-        # self._log_formatter =
-        log_stream_handler = logging.StreamHandler(sys.stdout)
-        log_stream_handler.setFormatter(logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s'))
-        log_stream_handler.setLevel(self.config.get_log_level())
-
         self.logger = logging.getLogger(self.script_name)
-        self.logger.addHandler(log_stream_handler)
         self.logger.setLevel(self.config.get_log_level())
 
         self.ec2 = None
@@ -213,6 +206,9 @@ class LambdaCore:
         Send an SNS notification to the notification Lambda for chain-dispatch
           to whatever notification service it's configured for.
         '''
+
+        if not self.config.get_notifications_enabled():
+            return
 
         self.sns.publish(
             TargetArn=self.config.get_notification_arn(),
